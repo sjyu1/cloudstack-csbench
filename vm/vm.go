@@ -22,7 +22,7 @@ import (
 	"csbench/utils"
 	"log"
 
-	"github.com/apache/cloudstack-go/v2/cloudstack"
+	"github.com/sjyu1/ablestack-mold-go/v2/cloudstack"
 )
 
 func ListVMs(cs *cloudstack.CloudStackClient, domainId string) ([]*cloudstack.VirtualMachine, error) {
@@ -103,6 +103,66 @@ func RebootVM(cs *cloudstack.CloudStackClient, vmId string) error {
 	_, err := cs.VirtualMachine.RebootVirtualMachine(p)
 	if err != nil {
 		log.Printf("Failed to reboot vm with id %s due to %v", vmId, err)
+		return err
+	}
+	return nil
+}
+
+func CreateVMSnapshot(cs *cloudstack.CloudStackClient, vmId string) (*cloudstack.CreateVMSnapshotResponse, error) {
+	p := cs.Snapshot.NewCreateVMSnapshotParams(vmId)
+	resp, err := cs.Snapshot.CreateVMSnapshot(p)
+	if err != nil {
+		log.Printf("Failed to create vm snapshot with id %s due to %v", vmId, err)
+		return nil, err
+	}
+	return resp, nil
+}
+
+func DeleteVMSnapshot(cs *cloudstack.CloudStackClient, snapshotId string) error {
+	p := cs.Snapshot.NewDeleteVMSnapshotParams(snapshotId)
+	_, err := cs.Snapshot.DeleteVMSnapshot(p)
+	if err != nil {
+		log.Printf("Failed to delete vm snapshot with id %s due to %v", snapshotId, err)
+		return err
+	}
+	return nil
+}
+
+func AllocateVbmcToVM(cs *cloudstack.CloudStackClient, vmId string) error {
+	p := cs.VirtualMachine.NewAllocateVbmcToVMParams(vmId)
+	_, err := cs.VirtualMachine.AllocateVbmcToVM(p)
+	if err != nil {
+		log.Printf("Failed to allocate vbmc to vm with id %s due to %v", vmId, err)
+		return err
+	}
+	return nil
+}
+
+func RemoveVbmcToVM(cs *cloudstack.CloudStackClient, vmId string) error {
+	p := cs.VirtualMachine.NewRemoveVbmcToVMParams(vmId)
+	_, err := cs.VirtualMachine.RemoveVbmcToVM(p)
+	if err != nil {
+		log.Printf("Failed to remove vbmc to vm with id %s due to %v", vmId, err)
+		return err
+	}
+	return nil
+}
+
+// func CloneVirtualMachine(cs *cloudstack.CloudStackClient, vmId string) error {
+// 	p := cs.VirtualMachine.NewCloneVirtualMachineParams(vmId)
+// 	_, err := cs.VirtualMachine.CloneVirtualMachine(p)
+// 	if err != nil {
+// 		log.Printf("Failed to clone to vm with id %s due to %v", vmId, err)
+// 		return err
+// 	}
+// 	return nil
+// }
+
+func RestoreVirtualMachine(cs *cloudstack.CloudStackClient, vmId string) error {
+	p := cs.VirtualMachine.NewRestoreVirtualMachineParams(vmId)
+	_, err := cs.VirtualMachine.RestoreVirtualMachine(p)
+	if err != nil {
+		log.Printf("Failed to restore to vm with id %s due to %v", vmId, err)
 		return err
 	}
 	return nil

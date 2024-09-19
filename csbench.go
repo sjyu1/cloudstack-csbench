@@ -20,6 +20,8 @@ package main
 import (
 	"csbench/domain"
 	"csbench/network"
+	"csbench/offering"
+	"csbench/template"
 	"csbench/vm"
 	"csbench/volume"
 	"flag"
@@ -28,6 +30,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,9 +39,9 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/apache/cloudstack-go/v2/cloudstack"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/montanaflynn/stats"
+	"github.com/sjyu1/ablestack-mold-go/v2/cloudstack"
 	"github.com/sourcegraph/conc/pool"
 )
 
@@ -49,6 +52,12 @@ var (
 type Result struct {
 	Success  bool
 	Duration float64
+}
+
+type Results struct {
+	Success  bool
+	Duration float64
+	Id       string
 }
 
 func init() {
@@ -165,7 +174,6 @@ func generateReport(results map[string][]*Result, format string, outputFile stri
 	for key, result := range results {
 		allExecutionsSample, successfulExecutionSample, failedExecutionSample := getSamples(result)
 		t.AppendRow(getRowFromSample(fmt.Sprintf("%s - All", key), allExecutionsSample))
-
 		if failedExecutionSample.Len() != 0 {
 			t.AppendRow(getRowFromSample(fmt.Sprintf("%s - Successful", key), successfulExecutionSample))
 			t.AppendRow(getRowFromSample(fmt.Sprintf("%s - Failed", key), failedExecutionSample))
@@ -191,6 +199,7 @@ func generateReport(results map[string][]*Result, format string, outputFile stri
 }
 
 func main() {
+	mold := flag.Bool("mold", false, "Test Mold APIs")
 	dbprofile := flag.Int("dbprofile", 0, "DB profile number")
 	create := flag.Bool("create", false, "Create resources. Specify at least one of the following options:\n\t"+
 		"-domain - Create subdomains and accounts\n\t"+
@@ -233,7 +242,7 @@ func main() {
 	}
 	flag.Parse()
 
-	if !(*create || *benchmark || *tearDown || *vmAction != "") {
+	if !(*mold || *create || *benchmark || *tearDown || *vmAction != "") {
 		log.Fatal("Please provide one of the following options: -create, -benchmark, -vmaction, -teardown")
 	}
 
@@ -269,6 +278,14 @@ func main() {
 	iterations := config.Iterations
 	page := config.Page
 	pagesize := config.PageSize
+
+	if *mold {
+		fmt.Printf("\n\n\033[1;34mBenchmarking the CloudStack environment [%s] with the following configuration\033[0m\n\n", apiURL)
+		fmt.Printf("Management server : %s\n", config.Host)
+
+		results := createResources_mold()
+		generateReport_mold(results, *format, *outputFile)
+	}
 
 	if *create {
 		results := createResources(domainFlag, limitsFlag, networkFlag, vmFlag, volumeFlag, workers)
@@ -866,3 +883,849 @@ func deleteDomains(workerPool *pool.ResultPool[*Result], cs *cloudstack.CloudSta
 	log.Infof("Deleted %d domains in %.2f seconds", len(domains), time.Since(start).Seconds())
 	return res
 }
+
+func createResources_mold() map[string][]*Results {
+	apiURL := config.URL
+
+	for _, profile := range profiles {
+		if profile.Name == "admin" {
+			cs := cloudstack.NewAsyncClient(apiURL, profile.ApiKey, profile.SecretKey, false)
+
+			var result = make(map[string][]*Results)
+
+			// Create domain & account
+			// account := createDomains_mold(cs, config.ParentDomainId, config.NumDomains)
+			// accountres := strings.Split(account.Id, ",")
+
+			// fmt.Printf("\n\033[1;34m============================================================\033[0m\n")
+			// fmt.Printf("                    Domain: [%s]\n", accountres[1])
+			// fmt.Printf("                    Account: [%s]\n", accountres[3])
+			// fmt.Printf("\033[1;34m============================================================\033[0m\n")
+
+			// result["createDomains"] = append(result["createDomains"], account)
+
+			// // Create template
+			// template := registerTemplate_mold(cs, config.Format, config.Hypervisor, config.TemplateUrl, config.OsTypeId, config.ZoneId)
+			// result["registerTemplate"] = append(result["registerTemplate"], template)
+
+			// // Create network(Isolated & L2)
+			// network := createNetwork_mold(cs, config.NetworkOfferingId, "", config.ParentDomainId, accountres[0], accountres[3], config.NumDomains)
+			// result["createNetwork(Isolated)"] = append(result["createNetwork(Isolated)"], network)
+
+			// networkl2 := createNetwork_mold(cs, config.L2NetworkOfferingId, "untagged", config.ParentDomainId, accountres[0], accountres[3], config.NumDomains)
+			// result["createNetwork(L2)"] = append(result["createNetwork(L2)"], networkl2)
+
+			// // Create vm
+			// vm := createVms_mold(cs, config.ParentDomainId, accountres[0], accountres[3], network.Id, config.NumVms)
+			// result["createVms"] = append(result["createVms"], vm)
+
+			// // Create volume & Attach volume
+			// volume := createVolumes_mold(cs, accountres[0], accountres[3], vm.Id, config.NumVolumes)
+			// result["createVolumes"] = append(result["createVolumes"], volume)
+
+			// // Create volume snapshot
+			// volumesnapshot := createSnapshot_mold(cs, volume.Id)
+			// result["createSnapshot"] = append(result["createSnapshot"], volumesnapshot)
+
+			// // Delete volume snapshot
+			// deleteSnapshot := deleteSnapshot_mold(cs, volumesnapshot.Id)
+			// result["deleteSnapshot"] = append(result["deleteSnapshot"], deleteSnapshot)
+
+			// // Detach volume
+			// detachVolume := detachVolume_mold(cs, volume.Id)
+			// result["detachVolume"] = append(result["detachVolume"], detachVolume)
+
+			// // Delete volume
+			// destroyVolume := destroyVolume_mold(cs, volume.Id)
+			// result["destroyVolume"] = append(result["destroyVolume"], destroyVolume)
+
+			// // Create vm snapshot(vm snapshot 존재할 경우, attach volume 안됨)
+			// vmsnapshot := createVmSnapshot_mold(cs, vm.Id)
+			// result["createVmSnapshot"] = append(result["createVmSnapshot"], vmsnapshot)
+
+			// // Delete vm snapshot
+			// deleteVmSnapshot := deleteVmSnapshot_mold(cs, vmsnapshot.Id)
+			// result["deleteVmSnapshot"] = append(result["deleteVmSnapshot"], deleteVmSnapshot)
+
+			// // Stop vm & Start vm
+			// stopVm := stopVm_mold(cs, vm.Id)
+			// result["stopVm"] = append(result["stopVm"], stopVm)
+			// startVm := startVm_mold(cs, vm.Id)
+			// result["startVm"] = append(result["startVm"], startVm)
+
+			// // Delete template
+			// deleteTemplate := deleteTemplate_mold(cs, template.Id)
+			// result["deleteTemplate"] = append(result["deleteTemplate"], deleteTemplate)
+
+			// // Destroy Vm
+			// destroyVm := destroyVm_mold(cs, vm.Id)
+			// result["destroyVm"] = append(result["destroyVm"], destroyVm)
+
+			// // Delete Network(Isolated & L2)
+			// deleteNetwork := deleteNetwork_mold(cs, network.Id)
+			// result["deleteNetwork(Isolated)"] = append(result["deleteNetwork(Isolated)"], deleteNetwork)
+			// deleteNetwork = deleteNetwork_mold(cs, networkl2.Id)
+			// result["deleteNetwork(L2)"] = append(result["deleteNetwork(L2)"], deleteNetwork)
+
+			// // Delete Account
+			// deleteAccount := deleteAccount_mold(cs, accountres[2])
+			// result["deleteAccount"] = append(result["deleteAccount"], deleteAccount)
+
+			// // Delete Domain
+			// deleteDomain := deleteDomain_mold(cs, accountres[0])
+			// result["deleteDomain"] = append(result["deleteDomain"], deleteDomain)
+
+			// // Create serviceOffering
+			// serviceOffering := createServiceOffering_mold(cs, config.NumDomains)
+			// result["createServiceOffering"] = append(result["createServiceOffering"], serviceOffering)
+
+			// // Delete serviceOffering
+			// deleteserviceOffering := deleteServiceOffering_mold(cs, serviceOffering.Id, config.NumDomains)
+			// result["deleteServiceOffering"] = append(result["deleteServiceOffering"], deleteserviceOffering)
+
+			// // Create diskoffering
+			// diskOffering := createDiskOffering_mold(cs, config.NumDomains)
+			// result["createDiskOffering"] = append(result["createDiskOffering"], diskOffering)
+
+			// // Delete diskoffering
+			// deletediskOffering := deleteDiskOffering_mold(cs, diskOffering.Id, config.NumDomains)
+			// result["deleteDiskOffering"] = append(result["deleteDiskOffering"], deletediskOffering)
+
+			// // Create networkoffering
+			// networkOffering := createNetworkOffering_mold(cs, config.NumDomains)
+			// result["createNetworkOffering"] = append(result["createNetworkOffering"], networkOffering)
+
+			// // Delete networkoffering
+			// deletenetworkOffering := deleteNetworkOffering_mold(cs, networkOffering.Id, config.NumDomains)
+			// result["deleteNetworkOffering"] = append(result["deleteNetworkOffering"], deletenetworkOffering)
+
+			// AllocateVbmcToVM
+			// allocateVbmcToVM := allocateVbmcToVM_mold(cs, vm.Id)
+			allocateVbmcToVM := allocateVbmcToVM_mold(cs, "f3fa8fd1-7a67-4af4-8c60-8ac18937f0ed")
+			result["allocateVbmcToVM"] = append(result["allocateVbmcToVM"], allocateVbmcToVM)
+
+			// RemoveVbmcToVM
+			// removeVbmcToVM := removeVbmcToVM(cs, vm.Id)
+			// removeVbmcToVM := removeVbmcToVM_mold(cs, "f3fa8fd1-7a67-4af4-8c60-8ac18937f0ed")
+			// result["removeVbmcToVM"] = append(result["removeVbmcToVM"], removeVbmcToVM)
+
+			// clone vm
+			// cloneToVM := cloneVirtualMachine_mold(cs, "329f951e-0a1f-43ec-ae22-f9a1537372ae")
+			// result["cloneToVM"] = append(result["cloneToVM"], cloneToVM)
+			return result
+		}
+	}
+	return nil
+}
+
+func generateReport_mold(results map[string][]*Results, format string, outputFile string) {
+	fmt.Println("Generating report")
+
+	t := table.NewWriter()
+	t.SetOutputMirror(os.Stdout)
+	t.AppendHeader(table.Row{"Type", "Count", "Min", "Max", "Avg", "Median", "90th percentile", "95th percentile", "99th percentile"})
+
+	for key, result := range results {
+		allExecutionsSample, successfulExecutionSample, failedExecutionSample := getSamples_mold(result)
+		t.AppendRow(getRowFromSample(fmt.Sprintf("%s - All", key), allExecutionsSample))
+		if failedExecutionSample.Len() != 0 {
+			t.AppendRow(getRowFromSample(fmt.Sprintf("%s - Successful", key), successfulExecutionSample))
+			t.AppendRow(getRowFromSample(fmt.Sprintf("%s - Failed", key), failedExecutionSample))
+		}
+	}
+
+	if outputFile != "" {
+		f, err := os.Create(outputFile)
+		if err != nil {
+			log.Error("Error creating file: ", err)
+		}
+		defer f.Close()
+		t.SetOutputMirror(f)
+	}
+	switch format {
+	case "csv":
+		t.RenderCSV()
+	case "tsv":
+		t.RenderTSV()
+	case "table":
+		t.Render()
+	}
+}
+
+func getSamples_mold(results []*Results) (stats.Float64Data, stats.Float64Data, stats.Float64Data) {
+	var allExecutionsSample stats.Float64Data
+	var successfulExecutionSample stats.Float64Data
+	var failedExecutionSample stats.Float64Data
+
+	for _, result := range results {
+		duration := math.Round(result.Duration*1000) / 1000
+		allExecutionsSample = append(allExecutionsSample, duration)
+		if result.Success {
+			successfulExecutionSample = append(successfulExecutionSample, duration)
+		} else {
+			failedExecutionSample = append(failedExecutionSample, duration)
+		}
+	}
+
+	return allExecutionsSample, successfulExecutionSample, failedExecutionSample
+}
+
+func createDomains_mold(cs *cloudstack.CloudStackClient, parentDomainId string, count int) *Results {
+	start := time.Now()
+	log.Infof("Creating %d domain & account", count)
+	dmn, err := domain.CreateDomain(cs, parentDomainId)
+	if err != nil {
+		log.Warn("Error creating domain: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+	acn, err := domain.CreateAccount(cs, dmn.Id)
+	if err != nil {
+		log.Warn("Error creating account: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Created %d domains in %.2f seconds", count, time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       dmn.Id + "," + dmn.Name + "," + acn.Id + "," + acn.Name,
+	}
+}
+
+func createNetwork_mold(cs *cloudstack.CloudStackClient, netnetworkofferingid string, vlan string, parentDomainId string, subdomain string, account string, count int) *Results {
+	start := time.Now()
+	log.Infof("Creating %d network", count)
+	network, err := network.CreateNetwork_mold(cs, netnetworkofferingid, vlan, parentDomainId, subdomain, account, count)
+	if err != nil {
+		log.Warn("Error creating network: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Created %d network in %.2f seconds", count, time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       network.Id,
+	}
+}
+
+func createVms_mold(cs *cloudstack.CloudStackClient, parentDomainId string, subdomain string, account string, networkId string, count int) *Results {
+	start := time.Now()
+	log.Infof("Creating %d vm", count)
+	vm, err := vm.DeployVm(cs, subdomain, networkId, account)
+	if err != nil {
+		log.Warn("Error creating vm: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	// vm state = Running일때까지 체크
+	// log.Infof("wait for running vm...")
+	// time.Sleep(20 * time.Second)
+
+	log.Infof("Created %d vm in %.2f seconds", count, time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       vm.Id,
+	}
+}
+
+func startVm_mold(cs *cloudstack.CloudStackClient, vmId string) *Results {
+	start := time.Now()
+	log.Infof("Starting vm")
+	result := false
+	err := vm.StartVM(cs, vmId)
+	result = err == nil
+
+	log.Infof("Start vm in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  result,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func stopVm_mold(cs *cloudstack.CloudStackClient, vmId string) *Results {
+	start := time.Now()
+	log.Infof("Stopping vm")
+	result := false
+	err := vm.StopVM(cs, vmId)
+	result = err == nil
+	// time.Sleep(10 * time.Second)
+
+	log.Infof("Stop vm in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  result,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func createVmSnapshot_mold(cs *cloudstack.CloudStackClient, vmId string) *Results {
+	start := time.Now()
+	log.Infof("Creating vm snapshot")
+	vmsnapshot, err := vm.CreateVMSnapshot(cs, vmId)
+	if err != nil {
+		log.Warn("Error creating vm snapshot: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       vmsnapshot.Id,
+	}
+}
+
+func deleteVmSnapshot_mold(cs *cloudstack.CloudStackClient, snapshotId string) *Results {
+	start := time.Now()
+	log.Infof("Deleting vm snapshot")
+	result := false
+	err := vm.DeleteVMSnapshot(cs, snapshotId)
+	result = err == nil
+
+	log.Infof("Deleted vm snapshot in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  result,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func createVolumes_mold(cs *cloudstack.CloudStackClient, subdomain string, account string, vmId string, count int) *Results {
+	start := time.Now()
+	log.Infof("Creating %d volume", count)
+
+	vol, err := volume.CreateVolume(cs, subdomain, account)
+	if err != nil {
+		log.Warn("Error creating volume: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	// time.Sleep(3 * time.Second)
+
+	log.Infof("Attaching %d volume", count)
+	_, err = volume.AttachVolume(cs, vol.Id, vmId)
+	if err != nil {
+		log.Warn("Error attaching volume: ", err)
+	}
+
+	log.Infof("Created %d volume in %.2f seconds", count, time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       vol.Id,
+	}
+}
+
+func createSnapshot_mold(cs *cloudstack.CloudStackClient, volumeId string) *Results {
+	start := time.Now()
+	log.Infof("Creating snapshot")
+	snapshot, err := volume.CreateSnapshot(cs, volumeId)
+	if err != nil {
+		log.Warn("Error Creating snapshot: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Created snapshot in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       snapshot.Id,
+	}
+}
+
+func createTemplate_mold(cs *cloudstack.CloudStackClient, ostypeid string, snapshotId string) *Results {
+	start := time.Now()
+	log.Infof("Creating template")
+	template, err := template.CreateTemplate(cs, ostypeid, snapshotId)
+	if err != nil {
+		log.Warn("Error creating template: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Created template in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       template.Id,
+	}
+}
+
+func registerTemplate_mold(cs *cloudstack.CloudStackClient, format, hypervisor, url, ostypeid, zoneid string) *Results {
+	start := time.Now()
+	log.Infof("Creating template")
+	template, err := template.RegisterTemplate(cs, format, hypervisor, url, ostypeid, zoneid)
+	if err != nil {
+		log.Warn("Error creating template: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+	log.Infof("Created template in %.2f seconds", time.Since(start).Seconds())
+
+	/*	RegisterTemplate 값이 배열
+
+		type RegisterTemplateResponse struct {
+			Count            int                 `json:"count"`
+			RegisterTemplate []*RegisterTemplate `json:"template"`
+		}
+	*/
+	var temp []*cloudstack.RegisterTemplate
+	temp = template.RegisterTemplate
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       temp[0].Id,
+	}
+}
+
+func listTemplates_mold(cs *cloudstack.CloudStackClient, templatefilter, templateId string) *Results {
+	start := time.Now()
+	log.Infof("Check ready template")
+	template, err := template.ListTemplates(cs, templatefilter, templateId)
+	if err != nil {
+		log.Warn("Error ready template: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+	log.Infof("ready template in %.2f seconds", time.Since(start).Seconds())
+
+	/*	Templates 값이 배열
+
+		type ListTemplatesResponse struct {
+			Count     int         `json:"count"`
+			Templates []*Template `json:"template"`
+		}
+	*/
+	var temp []*cloudstack.Template
+	temp = template.Templates
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       strconv.FormatBool(temp[0].Isready),
+	}
+}
+
+func deleteSnapshot_mold(cs *cloudstack.CloudStackClient, snapshotId string) *Results {
+	start := time.Now()
+	log.Infof("Deleting snapshot")
+	result := false
+	err := volume.DeleteSnapshot(cs, snapshotId)
+	result = err == nil
+
+	log.Infof("Deleted snapshot in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  result,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func detachVolume_mold(cs *cloudstack.CloudStackClient, volumeId string) *Results {
+	start := time.Now()
+	log.Infof("Detaching volume")
+	detachVolume, err := volume.DetachVolume(cs, volumeId)
+	if err != nil {
+		log.Warn("Error detach volume: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Detach volume in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       detachVolume.Id,
+	}
+}
+
+func destroyVolume_mold(cs *cloudstack.CloudStackClient, volumeId string) *Results {
+	start := time.Now()
+	log.Infof("Destroy volume")
+	destroyVolume, err := volume.DestroyVolume(cs, volumeId)
+	if err != nil {
+		log.Warn("Error destroy volume: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Destroy volume in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       destroyVolume.Id,
+	}
+}
+
+func deleteTemplate_mold(cs *cloudstack.CloudStackClient, templateId string) *Results {
+	start := time.Now()
+	for {
+		var res *Results
+		i := 1
+		res = listTemplates_mold(cs, config.TemplateFilter, templateId)
+		if res.Id == "true" {
+			log.Infof("Delete template")
+			err := template.DeleteTemplate(cs, templateId)
+			if err != nil {
+				log.Warn("Error delete template: ", err)
+				return &Results{
+					Success:  false,
+					Duration: time.Since(start).Seconds(),
+					Id:       "",
+				}
+			}
+			break
+		} else {
+			time.Sleep(10 * time.Second)
+			i++
+
+			if i == 10 {
+				break
+			}
+		}
+	}
+
+	log.Infof("Deleted template in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func destroyVm_mold(cs *cloudstack.CloudStackClient, vmId string) *Results {
+	start := time.Now()
+	log.Infof("Destroy vm")
+	result := false
+	err := vm.DestroyVm(cs, vmId)
+	result = err == nil
+
+	log.Infof("Destroy vm in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  result,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func deleteNetwork_mold(cs *cloudstack.CloudStackClient, networkId string) *Results {
+	start := time.Now()
+	log.Infof("Deleting network")
+	_, err := network.DeleteNetwork(cs, networkId)
+	if err != nil {
+		log.Warn("Error delete Network: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Deleted Network in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func deleteAccount_mold(cs *cloudstack.CloudStackClient, accountId string) *Results {
+	start := time.Now()
+	log.Infof("Deleting account")
+	err := domain.DeleteAccount(cs, accountId)
+	if err != nil {
+		log.Warn("Error delete account: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Deleted account in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func deleteDomain_mold(cs *cloudstack.CloudStackClient, domainId string) *Results {
+	start := time.Now()
+	log.Infof("Deleting domain")
+	_, err := domain.DeleteDomain(cs, domainId)
+	if err != nil {
+		log.Warn("Error delete domain: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Deleted domain in %.2f seconds", time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func createServiceOffering_mold(cs *cloudstack.CloudStackClient, count int) *Results {
+	start := time.Now()
+	log.Infof("Creating %d computeofferings", count)
+	offering, err := offering.CreateServiceOffering(cs)
+	if err != nil {
+		log.Warn("Error creating computeofferings: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Created %d computeofferings in %.2f seconds", count, time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       offering.Id,
+	}
+}
+
+func deleteServiceOffering_mold(cs *cloudstack.CloudStackClient, offeringId string, count int) *Results {
+	start := time.Now()
+	log.Infof("Deleting %d computeofferings", count)
+	_, err := offering.DeleteServiceOffering(cs, offeringId)
+	if err != nil {
+		log.Warn("Error delete computeofferings: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Deleted %d computeofferings in %.2f seconds", count, time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func createDiskOffering_mold(cs *cloudstack.CloudStackClient, count int) *Results {
+	start := time.Now()
+	log.Infof("Creating %d diskofferings", count)
+	offering, err := offering.CreateDiskOffering(cs)
+	if err != nil {
+		log.Warn("Error creating diskofferings: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Created %d diskofferings in %.2f seconds", count, time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       offering.Id,
+	}
+}
+
+func deleteDiskOffering_mold(cs *cloudstack.CloudStackClient, offeringId string, count int) *Results {
+	start := time.Now()
+	log.Infof("Deleting %d diskofferings", count)
+	_, err := offering.DeleteDiskOffering(cs, offeringId)
+	if err != nil {
+		log.Warn("Error delete diskofferings: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Deleted %d diskofferings in %.2f seconds", count, time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func createNetworkOffering_mold(cs *cloudstack.CloudStackClient, count int) *Results {
+	start := time.Now()
+	log.Infof("Creating %d networkofferings", count)
+	offering, err := offering.CreateNetworkOffering(cs)
+	if err != nil {
+		log.Warn("Error Creating networkoffering: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Created %d networkoffering in %.2f seconds", count, time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       offering.Id,
+	}
+}
+
+func deleteNetworkOffering_mold(cs *cloudstack.CloudStackClient, offeringId string, count int) *Results {
+	start := time.Now()
+	log.Infof("Deleting %d networkofferings", count)
+	_, err := offering.DeleteNetworkOffering(cs, offeringId)
+	if err != nil {
+		log.Warn("Error Deleting networkoffering: ", err)
+		return &Results{
+			Success:  false,
+			Duration: time.Since(start).Seconds(),
+			Id:       "",
+		}
+	}
+
+	log.Infof("Deleted %d networkoffering in %.2f seconds", count, time.Since(start).Seconds())
+
+	return &Results{
+		Success:  true,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func allocateVbmcToVM_mold(cs *cloudstack.CloudStackClient, vmId string) *Results {
+	start := time.Now()
+	log.Infof("Starting allocateVbmc vm")
+	result := false
+	err := vm.AllocateVbmcToVM(cs, vmId)
+	result = err == nil
+
+	log.Infof("Start allocateVbmc vm in %.2f seconds", time.Since(start).Seconds())
+	log.Infof("test =========== %s", result)
+	return &Results{
+		Success:  result,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func removeVbmcToVM_mold(cs *cloudstack.CloudStackClient, vmId string) *Results {
+	start := time.Now()
+	log.Infof("Starting removeVbmc vm")
+	result := false
+	err := vm.RemoveVbmcToVM(cs, vmId)
+	result = err == nil
+
+	log.Infof("Start removeVbmc vm in %.2f seconds", time.Since(start).Seconds())
+	log.Infof("test =========== %s", result)
+	return &Results{
+		Success:  result,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+func restoreVirtualMachine_mold(cs *cloudstack.CloudStackClient, vmId string) *Results {
+	start := time.Now()
+	log.Infof("Starting restoreVirtualMachine vm")
+	result := false
+	err := vm.RestoreVirtualMachine(cs, vmId)
+	result = err == nil
+
+	log.Infof("Start restoreVirtualMachine vm in %.2f seconds", time.Since(start).Seconds())
+	log.Infof("test =========== %s", result)
+	return &Results{
+		Success:  result,
+		Duration: time.Since(start).Seconds(),
+		Id:       "",
+	}
+}
+
+// func cloneVirtualMachine_mold(cs *cloudstack.CloudStackClient, vmId string) *Results {
+// 	start := time.Now()
+// 	log.Infof("Starting clone vm")
+// 	result := false
+// 	err := vm.CloneVirtualMachine(cs, vmId)
+// 	result = err == nil
+
+// 	log.Infof("Start clone vm in %.2f seconds", time.Since(start).Seconds())
+
+// 	return &Results{
+// 		Success:  result,
+// 		Duration: time.Since(start).Seconds(),
+// 		Id:       "",
+// 	}
+// }

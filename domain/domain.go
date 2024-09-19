@@ -22,7 +22,7 @@ import (
 	"csbench/utils"
 	"log"
 
-	"github.com/apache/cloudstack-go/v2/cloudstack"
+	"github.com/sjyu1/ablestack-mold-go/v2/cloudstack"
 )
 
 func CreateDomain(cs *cloudstack.CloudStackClient, parentDomainId string) (*cloudstack.CreateDomainResponse, error) {
@@ -128,4 +128,14 @@ func UpdateLimits(cs *cloudstack.CloudStackClient, account *cloudstack.Account) 
 		}
 	}
 	return true
+}
+
+func DeleteAccount(cs *cloudstack.CloudStackClient, accountId string) error {
+	deleteParams := cs.Account.NewDeleteAccountParams(accountId)
+	_, err := cs.Account.DeleteAccount(deleteParams)
+	if err != nil {
+		log.Printf("Failed to delete account with id  %s due to %v", accountId, err)
+		return err
+	}
+	return nil
 }

@@ -26,7 +26,7 @@ import (
 	"net/netip"
 	"strconv"
 
-	"github.com/apache/cloudstack-go/v2/cloudstack"
+	"github.com/sjyu1/ablestack-mold-go/v2/cloudstack"
 )
 
 func ListNetworks(cs *cloudstack.CloudStackClient, domainId string) ([]*cloudstack.Network, error) {
@@ -63,7 +63,7 @@ func CreateNetwork(cs *cloudstack.CloudStackClient, domainId string, count int) 
 		return nil, err
 	}
 	p.SetDomainid(domainId)
-	p.SetAcltype("Domain")
+	p.SetAcltype("Account")
 	p.SetGateway(gateway)
 	p.SetNetmask(netmask)
 	p.SetDisplaytext(netName)
@@ -129,4 +129,24 @@ func getIPFromUint32(ip uint32) string {
 		log.Printf("Failed to convert uint32 to ip due to %v", err)
 	}
 	return IP.String()
+}
+
+func CreateNetwork_mold(cs *cloudstack.CloudStackClient, networkofferingid, vlan, domainId, subdomain, account string, count int) (*cloudstack.CreateNetworkResponse, error) {
+	netName := "Network-" + utils.RandomString(10)
+	p := cs.Network.NewCreateNetworkParams(netName, networkofferingid, config.ZoneId)
+	p.SetDomainid(subdomain)
+	p.SetAccount(account)
+	p.SetAcltype("Account")
+	p.SetDisplaytext(netName)
+	p.SetBypassvlanoverlapcheck(true)
+	if vlan != "" {
+		p.SetVlan(vlan)
+	}
+
+	resp, err := cs.Network.CreateNetwork(p)
+	if err != nil {
+		log.Printf("Failed to create network due to: %v", err)
+		return nil, err
+	}
+	return resp, nil
 }

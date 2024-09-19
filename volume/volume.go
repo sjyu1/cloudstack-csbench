@@ -21,7 +21,7 @@ import (
 	"csbench/config"
 	"log"
 
-	"github.com/apache/cloudstack-go/v2/cloudstack"
+	"github.com/sjyu1/ablestack-mold-go/v2/cloudstack"
 
 	"csbench/utils"
 )
@@ -100,4 +100,24 @@ func DetachVolume(cs *cloudstack.CloudStackClient, volumeId string) (*cloudstack
 		return nil, err
 	}
 	return resp, nil
+}
+
+func CreateSnapshot(cs *cloudstack.CloudStackClient, volumeId string) (*cloudstack.CreateSnapshotResponse, error) {
+	p := cs.Snapshot.NewCreateSnapshotParams(volumeId)
+	resp, err := cs.Snapshot.CreateSnapshot(p)
+	if err != nil {
+		log.Printf("Failed to create snapshot due to: %v", err)
+		return nil, err
+	}
+	return resp, nil
+}
+
+func DeleteSnapshot(cs *cloudstack.CloudStackClient, snapshotId string) error {
+	p := cs.Snapshot.NewDeleteSnapshotParams(snapshotId)
+	_, err := cs.Snapshot.DeleteSnapshot(p)
+	if err != nil {
+		log.Printf("Failed to delete snapshot with id %s due to %v", snapshotId, err)
+		return err
+	}
+	return nil
 }
